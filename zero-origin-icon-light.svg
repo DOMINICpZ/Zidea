@@ -1,0 +1,38 @@
+<svg viewBox="0 0 680 680" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>Zero Pattern Icon (Light)</title>
+  <desc>Z pattern drawn through 3x3 dot grid on white background</desc>
+  <defs>
+    <radialGradient id="glow">
+      <stop offset="0%" stop-color="#1E1E1E" stop-opacity="1"/>
+      <stop offset="15%" stop-color="#1E1E1E" stop-opacity="0.5"/>
+      <stop offset="40%" stop-color="#1E1E1E" stop-opacity="0.12"/>
+      <stop offset="70%" stop-color="#1E1E1E" stop-opacity="0.03"/>
+      <stop offset="100%" stop-color="#1E1E1E" stop-opacity="0"/>
+    </radialGradient>
+    <style>
+      .z-line { stroke: #1E1E1E; fill: none; stroke-width: 14; stroke-linecap: round; stroke-linejoin: round; }
+      .dot-on { fill: #1E1E1E; opacity: 0.85; }
+      .dot-off { fill: #1E1E1E; opacity: 0.12; }
+    </style>
+  </defs>
+
+  <path d="M175,175 L340,175 L505,175 L340,340 L175,505 L340,505 L505,505" class="z-line"/>
+
+  <circle cx="175" cy="175" r="52" fill="url(#glow)"/>
+  <circle cx="340" cy="175" r="52" fill="url(#glow)"/>
+  <circle cx="505" cy="175" r="52" fill="url(#glow)"/>
+  <circle cx="340" cy="340" r="52" fill="url(#glow)"/>
+  <circle cx="175" cy="505" r="52" fill="url(#glow)"/>
+  <circle cx="340" cy="505" r="52" fill="url(#glow)"/>
+  <circle cx="505" cy="505" r="52" fill="url(#glow)"/>
+
+  <circle cx="175" cy="175" r="10" class="dot-on"/>
+  <circle cx="340" cy="175" r="10" class="dot-on"/>
+  <circle cx="505" cy="175" r="10" class="dot-on"/>
+  <circle cx="175" cy="340" r="8" class="dot-off"/>
+  <circle cx="340" cy="340" r="10" class="dot-on"/>
+  <circle cx="505" cy="340" r="8" class="dot-off"/>
+  <circle cx="175" cy="505" r="10" class="dot-on"/>
+  <circle cx="340" cy="505" r="10" class="dot-on"/>
+  <circle cx="505" cy="505" r="10" class="dot-on"/>
+</svg>

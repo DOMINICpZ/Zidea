@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>加载中...</title>
+    <script>
+      // 立即设置正确的标题，避免闪烁
+      (function() {
+        try {
+          const settings = localStorage.getItem('settings')
+          if (settings) {
+            const parsed = JSON.parse(settings)
+            if (parsed.platformName) {
+              document.title = parsed.platformName
+            }
+          }
+        } catch (e) {
+          // 忽略错误，使用默认标题
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
