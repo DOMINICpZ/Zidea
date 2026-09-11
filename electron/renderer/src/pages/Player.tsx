@@ -2,7 +2,8 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { Button, Drawer, List } from 'antd'
 import {
-  ArrowLeftOutlined,
+  HomeOutlined,
+  CloseOutlined,
   LinkOutlined,
   PictureOutlined,
   FilePdfOutlined,
@@ -551,7 +552,7 @@ const Player = () => {
         </div>
       )}
 
-      {/* 左侧导航抽屉：页面列表 + 隐藏操作项（返回/编辑）+ 快捷键说明 */}
+      {/* 左侧导航抽屉：页面列表 + 隐藏操作项（返回/编辑） */}
       <Drawer
         title={
           <span style={{ color: '#fff', fontWeight: 500 }}>页面导航</span>
@@ -561,6 +562,7 @@ const Player = () => {
         onClose={() => setNavDrawerOpen(false)}
         width={320}
         zIndex={10002}
+        closeIcon={<CloseOutlined style={{ color: '#fff', fontSize: 14 }} />}
         styles={{
           body: {
             padding: 0,
@@ -586,19 +588,14 @@ const Player = () => {
           }}
         >
           <Button
-            icon={<ArrowLeftOutlined />}
+            icon={<HomeOutlined />}
             onClick={handleExit}
             block
             style={{ background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)', color: '#fff' }}
           >
-            返回
+            首页
           </Button>
-          <Button
-            icon={<EditOutlined />}
-            onClick={handleEdit}
-            block
-            style={{ background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)', color: '#fff' }}
-          >
+          <Button type="primary" icon={<EditOutlined />} onClick={handleEdit} block>
             编辑
           </Button>
         </div>
@@ -649,27 +646,6 @@ const Player = () => {
               </List.Item>
             )}
           />
-        </div>
-
-        {/* 快捷键说明 */}
-        <div
-          style={{
-            padding: '12px 16px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-            color: 'rgba(255, 255, 255, 0.5)',
-            fontSize: '12px',
-            lineHeight: 2,
-            userSelect: 'none',
-          }}
-        >
-          <div>PageUp：上一页</div>
-          <div>PageDown：下一页</div>
-          <div>Tab：打开/关闭本导航栏</div>
-          <div>Esc：退出播放返回课程列表（全屏时先退出全屏）</div>
-          <div>F11：切换全屏</div>
-          <div style={{ marginTop: '4px', color: 'rgba(255, 255, 255, 0.3)' }}>
-            提示：页面含输入框时，快捷键自动放行以支持输入
-          </div>
         </div>
       </Drawer>
     </div>
