@@ -490,6 +490,15 @@ export const resizeBrowserView = async (bounds: { x: number; y: number; width: n
   await window.electronAPI.invoke('player:resizeBrowserView', bounds)
 }
 
+/**
+ * 设置键鼠快捷键总开关状态
+ * 关闭后主进程不再拦截/转发快捷键，键盘完全放行给内容区
+ * @param enabled - 是否启用快捷键
+ */
+export const setShortcutEnabled = async (enabled: boolean): Promise<void> => {
+  await window.electronAPI.invoke('player:setShortcutEnabled', enabled)
+}
+
 // ========== 数据规范化函数 ==========
 
 /**

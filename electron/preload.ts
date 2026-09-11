@@ -31,11 +31,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /**
    * 监听主进程转发的播放器快捷键动作
-   * @param callback - 回调函数，接收快捷键动作名称（previous/next/toggleNav/edit/exit/fullscreen）
+   * @param callback - 回调函数，接收快捷键动作名称（previous/next/toggleNav/exit/fullscreen）
+   * @returns {() => void} 取消订阅函数，组件卸载时调用以避免监听器累积
    */
   onShortcut: (callback: (action: string) => void) => {
-    ipcRenderer.on('player:shortcut', (_event, action) => {
+    const listener = (_event: Electron.IpcRendererEvent, action: string) => {
       callback(action);
-    });
+    };
+    ipcRenderer.on('player:shortcut', listener);
+    return () => {
+      ipcRenderer.removeListener('player:shortcut', listener);
+    };
   },
 });

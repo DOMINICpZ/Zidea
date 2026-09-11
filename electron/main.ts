@@ -33,6 +33,12 @@ let contentViewBounds: { x: number; y: number; width: number; height: number } |
 let contentViewEditable = false;
 
 /**
+ * 键鼠快捷键总开关
+ * 由渲染进程设置页控制，关闭后主进程不再拦截/转发快捷键，完全放行给内容
+ */
+let shortcutEnabled = true;
+
+/**
  * 注册应用自定义协议为特权协议
  * 必须在 app.ready 之前同步调用，否则 localStorage 等 Web Storage API 会被拒绝访问
  */
@@ -485,12 +491,10 @@ function registerLocalPageProtocol(): void {
 function mapKeyToShortcut(input: { key: string; alt: boolean; control: boolean; meta: boolean }): string | null {
   if (input.alt || input.control || input.meta) return null;
   switch (input.key) {
-    case 'ArrowLeft':
+    // 翻页仅使用 PageUp/PageDown，兼容翻页笔等实体设备，且不与文字输入冲突
     case 'PageUp':
       return 'previous';
-    case 'ArrowRight':
     case 'PageDown':
-    case ' ':
       return 'next';
     case 'Tab':
       return 'toggleNav';
@@ -513,6 +517,15 @@ function registerBrowserViewHandlers(): void {
    */
   ipcMain.on('player:content-editable', (_event, editable: boolean) => {
     contentViewEditable = !!editable;
+  });
+
+  /**
+   * 更新键鼠快捷键总开关状态
+   * @param _event - IPC 事件对象
+   * @param enabled - 是否启用快捷键
+   */
+  ipcMain.handle('player:setShortcutEnabled', (_event, enabled: boolean) => {
+    shortcutEnabled = !!enabled;
   });
 
   /**
@@ -547,9 +560,9 @@ function registerBrowserViewHandlers(): void {
       },
     });
 
-    // 拦截内容区键盘输入：非可编辑状态下将快捷键转发给渲染进程
+    // 拦截内容区键盘输入：快捷键关闭或可编辑状态下放行，否则转发给渲染进程
     contentView.webContents.on('before-input-event', (event, input) => {
-      if (contentViewEditable) return;
+      if (!shortcutEnabled || contentViewEditable) return;
       const action = mapKeyToShortcut(input);
       if (action && mainWindow) {
         event.preventDefault();
@@ -607,6 +620,8 @@ function registerBrowserViewHandlers(): void {
       mainWindow.removeBrowserView(contentView);
       (contentView.webContents as any).destroy();
       contentView = null;
+      // 销毁后将焦点归还主窗口，保证键盘快捷键走主窗口稳定通道
+      mainWindow.webContents.focus();
     }
   });
 
@@ -640,6 +655,8 @@ function registerBrowserViewHandlers(): void {
   ipcMain.handle('player:hideBrowserView', () => {
     if (contentView && mainWindow) {
       mainWindow.removeBrowserView(contentView);
+      // 隐藏后将焦点归还主窗口，保证抽屉等界面交互与快捷键正常
+      mainWindow.webContents.focus();
     }
   });
 

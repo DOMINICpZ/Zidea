@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 
 interface SettingsData {
   rememberPosition: boolean
+  shortcutEnabled: boolean
   defaultSort: 'createdAt' | 'name'
   platformName: string
   collectionName: string
@@ -13,6 +14,7 @@ interface SettingsData {
 
 const DEFAULT_SETTINGS: SettingsData = {
   rememberPosition: true,
+  shortcutEnabled: true,
   defaultSort: 'createdAt',
   platformName: '灵光宝盒',
   collectionName: '集合',
@@ -108,6 +110,14 @@ const Settings = () => {
             label="记忆播放位置"
             name="rememberPosition"
             valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            label="启用键鼠快捷键"
+            name="shortcutEnabled"
+            valuePropName="checked"
+            tooltip="关闭后键盘完全放行给内容，仅通过实体翻页笔（PageUp/PageDown）和导航栏按钮操作"
           >
             <Switch />
           </Form.Item>

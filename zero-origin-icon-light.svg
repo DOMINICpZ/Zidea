@@ -10,29 +10,29 @@
       <stop offset="100%" stop-color="#1E1E1E" stop-opacity="0"/>
     </radialGradient>
     <style>
-      .z-line { stroke: #1E1E1E; fill: none; stroke-width: 14; stroke-linecap: round; stroke-linejoin: round; }
+      .z-line { stroke: #1E1E1E; fill: none; stroke-width: 16.1; stroke-linecap: round; stroke-linejoin: round; }
       .dot-on { fill: #1E1E1E; opacity: 0.85; }
       .dot-off { fill: #1E1E1E; opacity: 0.12; }
     </style>
   </defs>
 
-  <path d="M175,175 L340,175 L505,175 L340,340 L175,505 L340,505 L505,505" class="z-line"/>
+  <path d="M85,85 L340,85 L595,85 L340,340 L85,595 L340,595 L595,595" class="z-line"/>
 
-  <circle cx="175" cy="175" r="52" fill="url(#glow)"/>
-  <circle cx="340" cy="175" r="52" fill="url(#glow)"/>
-  <circle cx="505" cy="175" r="52" fill="url(#glow)"/>
-  <circle cx="340" cy="340" r="52" fill="url(#glow)"/>
-  <circle cx="175" cy="505" r="52" fill="url(#glow)"/>
-  <circle cx="340" cy="505" r="52" fill="url(#glow)"/>
-  <circle cx="505" cy="505" r="52" fill="url(#glow)"/>
+  <circle cx="85" cy="85" r="59.8" fill="url(#glow)"/>
+  <circle cx="340" cy="85" r="59.8" fill="url(#glow)"/>
+  <circle cx="595" cy="85" r="59.8" fill="url(#glow)"/>
+  <circle cx="340" cy="340" r="59.8" fill="url(#glow)"/>
+  <circle cx="85" cy="595" r="59.8" fill="url(#glow)"/>
+  <circle cx="340" cy="595" r="59.8" fill="url(#glow)"/>
+  <circle cx="595" cy="595" r="59.8" fill="url(#glow)"/>
 
-  <circle cx="175" cy="175" r="10" class="dot-on"/>
-  <circle cx="340" cy="175" r="10" class="dot-on"/>
-  <circle cx="505" cy="175" r="10" class="dot-on"/>
-  <circle cx="175" cy="340" r="8" class="dot-off"/>
-  <circle cx="340" cy="340" r="10" class="dot-on"/>
-  <circle cx="505" cy="340" r="8" class="dot-off"/>
-  <circle cx="175" cy="505" r="10" class="dot-on"/>
-  <circle cx="340" cy="505" r="10" class="dot-on"/>
-  <circle cx="505" cy="505" r="10" class="dot-on"/>
+  <circle cx="85" cy="85" r="11.5" class="dot-on"/>
+  <circle cx="340" cy="85" r="11.5" class="dot-on"/>
+  <circle cx="595" cy="85" r="11.5" class="dot-on"/>
+  <circle cx="85" cy="340" r="9.2" class="dot-off"/>
+  <circle cx="340" cy="340" r="11.5" class="dot-on"/>
+  <circle cx="595" cy="340" r="9.2" class="dot-off"/>
+  <circle cx="85" cy="595" r="11.5" class="dot-on"/>
+  <circle cx="340" cy="595" r="11.5" class="dot-on"/>
+  <circle cx="595" cy="595" r="11.5" class="dot-on"/>
 </svg>

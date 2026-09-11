@@ -18,6 +18,23 @@ import { PageType } from '@/types'
 // 底部快捷键提示条高度，显示期间 BrowserView 收缩留出该区域
 const TIP_BAR_HEIGHT = 56
 
+/**
+ * 从 localStorage 读取键鼠快捷键开关状态
+ * @returns {boolean} 是否启用快捷键，默认启用
+ */
+function getShortcutEnabled(): boolean {
+  try {
+    const saved = localStorage.getItem('settings')
+    if (saved) {
+      const settings = JSON.parse(saved)
+      return settings.shortcutEnabled !== false
+    }
+  } catch (error) {
+    console.error('Failed to parse settings:', error)
+  }
+  return true
+}
+
 const Player = () => {
   const { courseId } = useParams<{ courseId: string }>()
   const navigate = useNavigate()
@@ -31,6 +48,13 @@ const Player = () => {
   const tipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 同步提示可见状态，供 BrowserView 高度计算即时读取（避免触发页面重载）
   const shortcutTipVisibleRef = useRef(true)
+  // 键鼠快捷键总开关，挂载时读取并同步主进程
+  const shortcutEnabledRef = useRef(getShortcutEnabled())
+
+  // 将快捷键开关状态同步给主进程（控制内容区按键拦截）
+  useEffect(() => {
+    api.setShortcutEnabled(shortcutEnabledRef.current)
+  }, [])
 
   /**
    * 计算内容区 BrowserView 可用高度
@@ -396,13 +420,17 @@ const Player = () => {
   shortcutRef.current = handleShortcut
 
   // 监听主进程转发的快捷键（内容区聚焦时生效）
+  // 注册返回注销函数，组件卸载时解除监听，避免多次进入播放页导致监听器累积
   useEffect(() => {
-    window.electronAPI.onShortcut((action) => shortcutRef.current(action))
+    return window.electronAPI.onShortcut((action) => shortcutRef.current(action))
   }, [])
 
-  // 主窗口聚焦时的键盘事件（可编辑元素上放行输入）
+  // 主窗口聚焦时的键盘事件（快捷键关闭或可编辑元素上放行输入）
   const handleKeyPress = useCallback(
     (event: KeyboardEvent) => {
+      // 快捷键总开关关闭时，键盘完全放行
+      if (!shortcutEnabledRef.current) return
+
       const target = event.target as HTMLElement | null
       if (
         target &&
@@ -415,14 +443,11 @@ const Player = () => {
       }
 
       switch (event.key) {
-        case 'ArrowLeft':
         case 'PageUp':
           handleShortcut('previous')
           event.preventDefault()
           break
-        case 'ArrowRight':
         case 'PageDown':
-        case ' ':
           handleShortcut('next')
           event.preventDefault()
           break
@@ -509,7 +534,7 @@ const Player = () => {
           }}
         >
           <span style={{ whiteSpace: 'nowrap' }}>
-            ←/→ 翻页 · Tab 导航 · Esc 退出 · F11 全屏
+            PageUp/PageDown 翻页 · Tab 导航 · Esc 退出 · F11 全屏
           </span>
           <Button
             size="small"
@@ -637,8 +662,8 @@ const Player = () => {
             userSelect: 'none',
           }}
         >
-          <div>← / PageUp：上一页</div>
-          <div>→ / PageDown / 空格：下一页</div>
+          <div>PageUp：上一页</div>
+          <div>PageDown：下一页</div>
           <div>Tab：打开/关闭本导航栏</div>
           <div>Esc：退出播放返回课程列表（全屏时先退出全屏）</div>
           <div>F11：切换全屏</div>
