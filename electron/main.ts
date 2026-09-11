@@ -27,6 +27,12 @@ let contentView: BrowserView | null = null;
 let contentViewBounds: { x: number; y: number; width: number; height: number } | null = null;
 
 /**
+ * 内容区当前聚焦元素是否可编辑
+ * 由内容区预加载脚本实时上报，用于规避快捷键与网页文字输入的冲突
+ */
+let contentViewEditable = false;
+
+/**
  * 注册应用自定义协议为特权协议
  * 必须在 app.ready 之前同步调用，否则 localStorage 等 Web Storage API 会被拒绝访问
  */
@@ -471,10 +477,44 @@ function registerLocalPageProtocol(): void {
 }
 
 /**
+ * 将键盘输入映射为播放器快捷键动作
+ * 仅映射未携带功能修饰键（Alt/Ctrl/Cmd）的按键
+ * @param input - before-input-event 提供的输入信息
+ * @returns {string | null} 快捷键动作名称，非快捷键返回 null
+ */
+function mapKeyToShortcut(input: { key: string; alt: boolean; control: boolean; meta: boolean }): string | null {
+  if (input.alt || input.control || input.meta) return null;
+  switch (input.key) {
+    case 'ArrowLeft':
+    case 'PageUp':
+      return 'previous';
+    case 'ArrowRight':
+    case 'PageDown':
+    case ' ':
+      return 'next';
+    case 'Tab':
+      return 'toggleNav';
+    case 'Escape':
+      return 'exit';
+    case 'F11':
+      return 'fullscreen';
+    default:
+      return null;
+  }
+}
+
+/**
  * 注册 BrowserView 相关的 IPC 处理器
  * 用于在播放器中显示外部网页，替代 iframe 以绕过 X-Frame-Options 限制
  */
 function registerBrowserViewHandlers(): void {
+  /**
+   * 接收内容区预加载脚本上报的焦点可编辑状态
+   */
+  ipcMain.on('player:content-editable', (_event, editable: boolean) => {
+    contentViewEditable = !!editable;
+  });
+
   /**
    * 创建或更新 BrowserView 并加载指定内容
    * @param event - IPC 事件对象
@@ -494,13 +534,27 @@ function registerBrowserViewHandlers(): void {
     }
 
     // 创建新的 BrowserView
+    // 重置可编辑状态，等待预加载脚本上报
+    contentViewEditable = false;
     contentView = new BrowserView({
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
         webSecurity: false,
         allowRunningInsecureContent: true,
+        // 注入焦点跟踪预加载脚本，用于规避快捷键与网页输入冲突
+        preload: path.join(__dirname, 'contentPreload.js'),
       },
+    });
+
+    // 拦截内容区键盘输入：非可编辑状态下将快捷键转发给渲染进程
+    contentView.webContents.on('before-input-event', (event, input) => {
+      if (contentViewEditable) return;
+      const action = mapKeyToShortcut(input);
+      if (action && mainWindow) {
+        event.preventDefault();
+        mainWindow.webContents.send('player:shortcut', action);
+      }
     });
 
     // 忽略 HTTPS 证书错误，允许访问自签名证书网站

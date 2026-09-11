@@ -3,9 +3,6 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { Button, Drawer, List } from 'antd'
 import {
   ArrowLeftOutlined,
-  LeftOutlined,
-  RightOutlined,
-  MenuOutlined,
   LinkOutlined,
   PictureOutlined,
   FilePdfOutlined,
@@ -18,8 +15,8 @@ import { useHistoryStore } from '@/store/historyStore'
 import * as api from '@/services/api'
 import { PageType } from '@/types'
 
-// 预留底部空间给工具栏（20px 工具栏 + 5px 上下间隙）
-const TOOLBAR_HEIGHT = 25
+// 底部快捷键提示条高度，显示期间 BrowserView 收缩留出该区域
+const TIP_BAR_HEIGHT = 56
 
 const Player = () => {
   const { courseId } = useParams<{ courseId: string }>()
@@ -28,10 +25,52 @@ const Player = () => {
   const { currentCourse, fetchCourseDetail } = useCourseStore()
   const { getHistory, setHistory } = useHistoryStore()
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [controlsVisible, setControlsVisible] = useState(true)
   const [navDrawerOpen, setNavDrawerOpen] = useState(false)
+  const [showShortcutTip, setShowShortcutTip] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 同步提示可见状态，供 BrowserView 高度计算即时读取（避免触发页面重载）
+  const shortcutTipVisibleRef = useRef(true)
+
+  /**
+   * 计算内容区 BrowserView 可用高度
+   * 提示条可见时底部收缩 TIP_BAR_HEIGHT，保证提示条不被 BrowserView 遮挡
+   * @param rectHeight - 容器总高度
+   * @returns {number} BrowserView 实际高度
+   */
+  const getContentHeight = useCallback((rectHeight: number): number => {
+    return shortcutTipVisibleRef.current ? Math.max(rectHeight - TIP_BAR_HEIGHT, 0) : rectHeight
+  }, [])
+
+  // 进入播放页后5秒自动隐藏快捷键提示
+  useEffect(() => {
+    tipTimerRef.current = setTimeout(() => {
+      shortcutTipVisibleRef.current = false
+      setShowShortcutTip(false)
+    }, 5000)
+    return () => {
+      if (tipTimerRef.current) {
+        clearTimeout(tipTimerRef.current)
+      }
+    }
+  }, [])
+
+  // 提示条显隐变化后重新调整 BrowserView 尺寸
+  useEffect(() => {
+    const timer = setTimeout(adjustBrowserView, 100)
+    return () => clearTimeout(timer)
+  }, [showShortcutTip])
+
+  /**
+   * 主动关闭快捷键提示并清除定时器
+   */
+  const closeShortcutTip = () => {
+    if (tipTimerRef.current) {
+      clearTimeout(tipTimerRef.current)
+    }
+    shortcutTipVisibleRef.current = false
+    setShowShortcutTip(false)
+  }
 
   // 加载课程和历史位置
   useEffect(() => {
@@ -189,7 +228,7 @@ const Player = () => {
                 x: rect.left,
                 y: rect.top,
                 width: rect.width,
-                height: Math.max(rect.height - TOOLBAR_HEIGHT, 0),
+                height: getContentHeight(rect.height),
               })
             }
           }, 200)
@@ -213,10 +252,10 @@ const Player = () => {
         x: rect.left,
         y: rect.top,
         width: rect.width,
-        height: Math.max(rect.height - TOOLBAR_HEIGHT, 0),
+        height: getContentHeight(rect.height),
       })
     }
-  }, [])
+  }, [getContentHeight])
 
   // 当容器准备好后，调整 BrowserView 大小
   useEffect(() => {
@@ -295,24 +334,114 @@ const Player = () => {
     }
   }, [])
 
-  // 键盘事件
+  const handleNext = useCallback(() => {
+    if (currentCourse && currentIndex < currentCourse.pages.length - 1) {
+      setCurrentIndex(currentIndex + 1)
+    }
+  }, [currentCourse, currentIndex])
+
+  const handlePrevious = useCallback(() => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1)
+    }
+  }, [currentIndex])
+
+  const handleExit = useCallback(() => {
+    api.destroyBrowserView()
+    navigate('/')
+  }, [navigate])
+
+  /**
+   * 跳转到当前集合的编辑页
+   */
+  const handleEdit = useCallback(() => {
+    api.destroyBrowserView()
+    navigate(`/courses/${courseId}/edit`)
+  }, [courseId, navigate])
+
+  /**
+   * 执行快捷键动作
+   * @param action - 快捷键动作名称（previous/next/toggleNav/edit/exit/fullscreen）
+   */
+  const handleShortcut = useCallback(
+    (action: string) => {
+      switch (action) {
+        case 'previous':
+          handlePrevious()
+          break
+        case 'next':
+          handleNext()
+          break
+        case 'toggleNav':
+          setNavDrawerOpen((v) => !v)
+          break
+        case 'exit':
+          // 全屏状态下先退出全屏，否则退出播放返回课程列表
+          if (document.fullscreenElement) {
+            toggleFullscreen()
+          } else {
+            handleExit()
+          }
+          break
+        case 'fullscreen':
+          toggleFullscreen()
+          break
+      }
+    },
+    [handleNext, handlePrevious, handleExit, toggleFullscreen]
+  )
+
+  // 通过 ref 持有最新的快捷键处理函数，保证 onShortcut 只注册一次
+  const shortcutRef = useRef(handleShortcut)
+  shortcutRef.current = handleShortcut
+
+  // 监听主进程转发的快捷键（内容区聚焦时生效）
+  useEffect(() => {
+    window.electronAPI.onShortcut((action) => shortcutRef.current(action))
+  }, [])
+
+  // 主窗口聚焦时的键盘事件（可编辑元素上放行输入）
   const handleKeyPress = useCallback(
     (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return
+      }
+
       switch (event.key) {
         case 'ArrowLeft':
-          handlePrevious()
+        case 'PageUp':
+          handleShortcut('previous')
           event.preventDefault()
           break
         case 'ArrowRight':
+        case 'PageDown':
         case ' ':
-          handleNext()
+          handleShortcut('next')
           event.preventDefault()
           break
-        case 'Escape':
-          if (document.fullscreenElement) {
-            toggleFullscreen()
+        case 'Tab':
+          // 抽屉打开时放行Tab，用于抽屉内焦点导航
+          if (!navDrawerOpen) {
+            handleShortcut('toggleNav')
             event.preventDefault()
           }
+          break
+        case 'Escape':
+          if (navDrawerOpen) {
+            setNavDrawerOpen(false)
+          } else if (document.fullscreenElement) {
+            toggleFullscreen()
+          } else {
+            handleExit()
+          }
+          event.preventDefault()
           break
         case 'F11':
           event.preventDefault()
@@ -320,7 +449,7 @@ const Player = () => {
           break
       }
     },
-    [currentIndex, currentCourse, toggleFullscreen]
+    [handleShortcut, navDrawerOpen, toggleFullscreen, handleExit]
   )
 
   useEffect(() => {
@@ -329,68 +458,6 @@ const Player = () => {
       window.removeEventListener('keydown', handleKeyPress)
     }
   }, [handleKeyPress])
-
-  const handleNext = () => {
-    if (currentCourse && currentIndex < currentCourse.pages.length - 1) {
-      setCurrentIndex(currentIndex + 1)
-    }
-  }
-
-  const handlePrevious = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1)
-    }
-  }
-
-  const handleExit = () => {
-    api.destroyBrowserView()
-    navigate('/')
-  }
-
-  /**
-   * 跳转到当前集合的编辑页
-   */
-  const handleEdit = () => {
-    api.destroyBrowserView()
-    navigate(`/courses/${courseId}/edit`)
-  }
-
-  // 鼠标移动时显示控制栏，并自动隐藏
-  const handleMouseMove = useCallback((event: MouseEvent) => {
-    const container = containerRef.current
-    if (!container) return
-
-    const rect = container.getBoundingClientRect()
-    const y = event.clientY - rect.top
-    const isInBottomZone = y > rect.height - 40
-
-    if (isInBottomZone) {
-      setControlsVisible(true)
-      if (hideTimerRef.current) {
-        clearTimeout(hideTimerRef.current)
-      }
-      hideTimerRef.current = setTimeout(() => {
-        setControlsVisible(false)
-      }, 2000)
-    } else {
-      if (hideTimerRef.current) {
-        clearTimeout(hideTimerRef.current)
-      }
-      setControlsVisible(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (container) {
-      container.addEventListener('mousemove', handleMouseMove)
-      window.addEventListener('mousemove', handleMouseMove)
-      return () => {
-        container.removeEventListener('mousemove', handleMouseMove)
-        window.removeEventListener('mousemove', handleMouseMove)
-      }
-    }
-  }, [handleMouseMove])
 
   if (!currentCourse || currentCourse.pages.length === 0) {
     return <div>加载中...</div>
@@ -421,104 +488,45 @@ const Player = () => {
         }}
       />
 
-      {/* 极简浮窗控制栏 - 高度20px */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '2px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          height: '20px',
-          background: 'rgba(0, 0, 0, 0.15)',
-          backdropFilter: 'blur(8px)',
-          borderRadius: '4px',
-          padding: '0 8px',
-          opacity: controlsVisible ? 1 : 0,
-          transition: 'opacity 0.3s ease',
-          zIndex: 10001,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-        }}
-      >
-        <Button
-          size="small"
-          icon={<MenuOutlined style={{ fontSize: '10px' }} />}
-          onClick={() => setNavDrawerOpen(true)}
-          style={{ 
-            height: '16px', 
-            padding: '0 4px', 
-            fontSize: '10px',
-            background: 'rgba(255, 255, 255, 0.08)', 
-            borderColor: 'rgba(255, 255, 255, 0.15)', 
-            color: '#fff' 
+      {/* 进入播放时的快捷键提示条 - 5秒自动隐藏，可主动关闭；显示期间 BrowserView 底部收缩避免遮挡 */}
+      {showShortcutTip && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: TIP_BAR_HEIGHT,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '16px',
+            background: 'rgba(0, 0, 0, 0.85)',
+            color: '#fff',
+            fontSize: '13px',
+            zIndex: 10001,
+            userSelect: 'none',
           }}
-          title="页面导航"
-        />
-        <Button
-          size="small"
-          icon={<ArrowLeftOutlined style={{ fontSize: '10px' }} />}
-          onClick={handleExit}
-          style={{ 
-            height: '16px', 
-            padding: '0 4px', 
-            fontSize: '10px',
-            background: 'rgba(255, 255, 255, 0.08)', 
-            borderColor: 'rgba(255, 255, 255, 0.15)', 
-            color: '#fff' 
-          }}
-          title="返回"
-        />
-        <Button
-          size="small"
-          icon={<LeftOutlined style={{ fontSize: '10px' }} />}
-          onClick={handlePrevious}
-          disabled={currentIndex === 0}
-          style={{ 
-            height: '16px', 
-            padding: '0 4px', 
-            fontSize: '10px',
-            background: 'rgba(255, 255, 255, 0.08)', 
-            borderColor: 'rgba(255, 255, 255, 0.15)', 
-            color: '#fff' 
-          }}
-          title="上一页"
-        />
-        <span style={{ fontSize: '11px', color: '#fff', minWidth: '40px', textAlign: 'center', userSelect: 'none' }}>
-          {currentIndex + 1}/{currentCourse.pages.length}
-        </span>
-        <Button
-          size="small"
-          icon={<RightOutlined style={{ fontSize: '10px' }} />}
-          onClick={handleNext}
-          disabled={currentIndex === currentCourse.pages.length - 1}
-          style={{ 
-            height: '16px', 
-            padding: '0 4px', 
-            fontSize: '10px',
-            background: 'rgba(255, 255, 255, 0.08)', 
-            borderColor: 'rgba(255, 255, 255, 0.15)', 
-            color: '#fff' 
-          }}
-          title="下一页"
-        />
-        <Button
-          size="small"
-          icon={<EditOutlined style={{ fontSize: '10px' }} />}
-          onClick={handleEdit}
-          style={{ 
-            height: '16px', 
-            padding: '0 4px', 
-            fontSize: '10px',
-            background: 'rgba(255, 255, 255, 0.08)', 
-            borderColor: 'rgba(255, 255, 255, 0.15)', 
-            color: '#fff' 
-          }}
-          title="编辑"
-        />
-      </div>
+        >
+          <span style={{ whiteSpace: 'nowrap' }}>
+            ←/→ 翻页 · Tab 导航 · Esc 退出 · F11 全屏
+          </span>
+          <Button
+            size="small"
+            onClick={closeShortcutTip}
+            style={{
+              background: 'rgba(255, 255, 255, 0.15)',
+              borderColor: 'rgba(255, 255, 255, 0.25)',
+              color: '#fff',
+              fontSize: '12px',
+            }}
+          >
+            知道了
+          </Button>
+        </div>
+      )}
 
-      {/* 左侧导航抽屉 */}
+      {/* 左侧导航抽屉：页面列表 + 隐藏操作项（返回/编辑）+ 快捷键说明 */}
       <Drawer
         title={
           <span style={{ color: '#fff', fontWeight: 500 }}>页面导航</span>
@@ -529,7 +537,12 @@ const Player = () => {
         width={320}
         zIndex={10002}
         styles={{
-          body: { padding: 0, background: 'rgba(30, 30, 30, 0.95)' },
+          body: {
+            padding: 0,
+            background: 'rgba(30, 30, 30, 0.95)',
+            display: 'flex',
+            flexDirection: 'column',
+          },
           header: {
             background: 'rgba(30, 30, 30, 0.95)',
             borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
@@ -538,50 +551,101 @@ const Player = () => {
         }}
         push={false}
       >
-        <List
-          dataSource={currentCourse.pages}
-          renderItem={(page, index) => (
-            <List.Item
-              key={page.id}
-              onClick={() => {
-                setCurrentIndex(index)
-                setNavDrawerOpen(false)
-              }}
-              style={{
-                padding: '12px 16px',
-                cursor: 'pointer',
-                background: index === currentIndex ? 'rgba(24, 144, 255, 0.2)' : 'transparent',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                transition: 'background 0.2s ease',
-              }}
-              className="nav-list-item"
-              onMouseEnter={(e) => {
-                if (index !== currentIndex) {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (index !== currentIndex) {
-                  e.currentTarget.style.background = 'transparent'
-                }
-              }}
-            >
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '13px', minWidth: '24px' }}>
-                  {index + 1}.
-                </span>
-                {(page.type === PageType.LOCAL || page.type === PageType.EXTERNAL) && <LinkOutlined style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }} />}
-                {page.type === PageType.IMAGE && <PictureOutlined style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }} />}
-                {page.type === PageType.PDF && <FilePdfOutlined style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }} />}
-                {page.type === PageType.VIDEO && <PlayCircleOutlined style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }} />}
-                {page.type === PageType.TITLE && <FontSizeOutlined style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }} />}
-                <span style={{ color: '#fff', fontSize: '14px', flex: 1 }}>
-                  {page.name}
-                </span>
-              </div>
-            </List.Item>
-          )}
-        />
+        {/* 隐藏操作项：返回 / 编辑 */}
+        <div
+          style={{
+            padding: '12px 16px',
+            display: 'flex',
+            gap: '8px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          }}
+        >
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={handleExit}
+            block
+            style={{ background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)', color: '#fff' }}
+          >
+            返回
+          </Button>
+          <Button
+            icon={<EditOutlined />}
+            onClick={handleEdit}
+            block
+            style={{ background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)', color: '#fff' }}
+          >
+            编辑
+          </Button>
+        </div>
+
+        {/* 页面列表 */}
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          <List
+            dataSource={currentCourse.pages}
+            renderItem={(page, index) => (
+              <List.Item
+                key={page.id}
+                onClick={() => {
+                  setCurrentIndex(index)
+                  setNavDrawerOpen(false)
+                }}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  background: index === currentIndex ? 'rgba(24, 144, 255, 0.2)' : 'transparent',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                  transition: 'background 0.2s ease',
+                }}
+                className="nav-list-item"
+                onMouseEnter={(e) => {
+                  if (index !== currentIndex) {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (index !== currentIndex) {
+                    e.currentTarget.style.background = 'transparent'
+                  }
+                }}
+              >
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '13px', minWidth: '24px' }}>
+                    {index + 1}.
+                  </span>
+                  {(page.type === PageType.LOCAL || page.type === PageType.EXTERNAL) && <LinkOutlined style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }} />}
+                  {page.type === PageType.IMAGE && <PictureOutlined style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }} />}
+                  {page.type === PageType.PDF && <FilePdfOutlined style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }} />}
+                  {page.type === PageType.VIDEO && <PlayCircleOutlined style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }} />}
+                  {page.type === PageType.TITLE && <FontSizeOutlined style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }} />}
+                  <span style={{ color: '#fff', fontSize: '14px', flex: 1 }}>
+                    {page.name}
+                  </span>
+                </div>
+              </List.Item>
+            )}
+          />
+        </div>
+
+        {/* 快捷键说明 */}
+        <div
+          style={{
+            padding: '12px 16px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            color: 'rgba(255, 255, 255, 0.5)',
+            fontSize: '12px',
+            lineHeight: 2,
+            userSelect: 'none',
+          }}
+        >
+          <div>← / PageUp：上一页</div>
+          <div>→ / PageDown / 空格：下一页</div>
+          <div>Tab：打开/关闭本导航栏</div>
+          <div>Esc：退出播放返回课程列表（全屏时先退出全屏）</div>
+          <div>F11：切换全屏</div>
+          <div style={{ marginTop: '4px', color: 'rgba(255, 255, 255, 0.3)' }}>
+            提示：页面含输入框时，快捷键自动放行以支持输入
+          </div>
+        </div>
       </Drawer>
     </div>
   )

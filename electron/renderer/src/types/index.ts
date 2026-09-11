@@ -81,6 +81,7 @@ declare global {
   interface Window {
     electronAPI: {
       invoke: (channel: string, ...args: any[]) => Promise<any>
+      onShortcut: (callback: (action: string) => void) => void
     }
   }
 }

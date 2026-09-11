@@ -208,12 +208,6 @@ export function createCourse(name: string, description?: string): Course {
   coursesData[courseId] = course.toJSON();
   writeCourses(coursesData);
 
-  const config = getConfig();
-  const coursePagesDir = path.join(config.pagesDir, courseId);
-  if (!fs.existsSync(coursePagesDir)) {
-    fs.mkdirSync(coursePagesDir, { recursive: true });
-  }
-
   return course;
 }
 
@@ -261,10 +255,10 @@ export function deleteCourse(courseId: string): boolean {
 
   const config = getConfig();
 
-  // 删除课程页面元数据目录
-  const coursePagesDir = path.join(config.pagesDir, courseId);
-  if (fs.existsSync(coursePagesDir)) {
-    fs.rmSync(coursePagesDir, { recursive: true, force: true });
+  // 删除课程页面元数据文件（单文件存储 {courseId}.json）
+  const coursePagesFile = path.join(config.pagesDir, `${courseId}.json`);
+  if (fs.existsSync(coursePagesFile)) {
+    fs.rmSync(coursePagesFile, { force: true });
   }
 
   // 删除课程资源目录

@@ -28,4 +28,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       callback(level, ...args);
     });
   },
+
+  /**
+   * 监听主进程转发的播放器快捷键动作
+   * @param callback - 回调函数，接收快捷键动作名称（previous/next/toggleNav/edit/exit/fullscreen）
+   */
+  onShortcut: (callback: (action: string) => void) => {
+    ipcRenderer.on('player:shortcut', (_event, action) => {
+      callback(action);
+    });
+  },
 });

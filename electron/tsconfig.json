@@ -18,6 +18,7 @@
   "include": [
     "main.ts",
     "preload.ts",
+    "contentPreload.ts",
     "models.ts",
     "storage.ts",
     "ipcHandlers.ts"
